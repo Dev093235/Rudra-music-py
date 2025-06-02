@@ -2,9 +2,12 @@ from flask import Flask, request, send_file, jsonify
 import yt_dlp
 import os
 import uuid
-import traceback
+import logging
 
 app = Flask(__name__)
+
+# Enable debug logging
+logging.basicConfig(level=logging.DEBUG)
 
 @app.route('/')
 def home():
@@ -23,7 +26,8 @@ def get_audio():
         'format': 'bestaudio/best',
         'outtmpl': filepath,
         'noplaylist': True,
-        'cookiefile': 'cookies.txt',
+        'cookiefile': 'cookies.txt',  # Make sure this file exists in your root
+        'logger': app.logger,
         'quiet': False,
         'verbose': True,
         'postprocessors': [{
@@ -40,30 +44,22 @@ def get_audio():
                 info = info['entries'][0]
             elif not info:
                 return jsonify({"error": "No video found"}), 404
-
-        # Check if file is created
-        if not os.path.exists(filepath):
-            return jsonify({"error": "Audio file not created - possible ffmpeg or permission issue"}), 500
-
-        return send_file(
-            filepath,
-            mimetype="audio/mpeg",
-            as_attachment=True,
-            download_name=f"{query.replace(' ', '_')}.mp3"
-        )
-
+    except yt_dlp.utils.DownloadError as e:
+        app.logger.error(f"yt-dlp error: {str(e)}")
+        return jsonify({"error": "DownloadError", "detail": str(e)}), 500
     except Exception as e:
-        # Get full traceback string
-        tb_str = traceback.format_exc()
-        print(f"ERROR: {tb_str}")  # Ye Render logs me dikhega
+        app.logger.error(f"Unhandled exception: {str(e)}")
+        return jsonify({"error": "Unhandled exception", "detail": str(e)}), 500
 
-        # Detailed error response
-        return jsonify({
-            "error": "Exception occurred",
-            "type": str(type(e)),
-            "message": str(e),
-            "traceback": tb_str
-        }), 500
+    if not os.path.exists(filepath):
+        return jsonify({"error": "Audio file not created - check ffmpeg and permission"}), 500
+
+    return send_file(
+        filepath,
+        mimetype="audio/mpeg",
+        as_attachment=True,
+        download_name=f"{query.replace(' ', '_')}.mp3"
+    )
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000, debug=True)
