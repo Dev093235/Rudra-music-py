@@ -1,36 +1,40 @@
-from flask import Flask, request, jsonify, redirect
-import yt_dlp
+from flask import Flask, request, send_file, jsonify
+from pytube import Search, YouTube
+import os
+import uuid
 
 app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "🎵 Rudra Flask Audio API is running!"
-
 @app.route('/audio')
-def get_audio():
+def download_audio():
     query = request.args.get('q')
     if not query:
-        return jsonify({"error": "No query provided"}), 400
-
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'noplaylist': True,
-        'quiet': True,
-        'default_search': 'ytsearch1:',
-        'skip_download': True
-    }
+        return jsonify({"error": "Missing 'q' parameter"}), 400
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            result = ydl.extract_info(query, download=False)
-            if 'entries' in result:
-                result = result['entries'][0]
+        search = Search(query)
+        video = search.results[0]
+        yt = YouTube(video.watch_url)
+        stream = yt.streams.filter(only_audio=True).first()
 
-            audio_url = result['url']
-            return redirect(audio_url)
+        filename = f"{uuid.uuid4()}.mp3"
+        path = stream.download(filename=filename)
+
+        return send_file(
+            path,
+            as_attachment=True,
+            download_name=f"{query}.mp3",
+            mimetype="audio/mpeg"
+        )
+
     except Exception as e:
-        return jsonify({"error": "Failed to fetch audio", "detail": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            if os.path.exists(filename):
+                os.remove(filename)
+        except:
+            pass
 
 if __name__ == '__main__':
     app.run(debug=True)
