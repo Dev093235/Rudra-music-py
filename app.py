@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🎵 Rudra Music API with cookies support is running!"
+    return "🎵 Rudra Music API with Cookies is running!"
 
 @app.route('/audio')
 def get_audio():
@@ -15,11 +15,6 @@ def get_audio():
     if not query:
         return jsonify({"error": "Missing search query `q`"}), 400
 
-    # Cookies file path (optional)
-    cookies_path = 'cookies.txt'
-    use_cookies = os.path.exists(cookies_path)
-
-    # Generate a unique filename
     filename = f"{uuid.uuid4().hex}.mp3"
     filepath = os.path.join("/tmp", filename)
 
@@ -28,16 +23,13 @@ def get_audio():
         'outtmpl': filepath,
         'noplaylist': True,
         'quiet': True,
+        'cookiefile': 'cookies.txt',  # ✅ Add this line
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
     }
-
-    # Agar cookies file hai to options me daal do
-    if use_cookies:
-        ydl_opts['cookiefile'] = cookies_path
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
