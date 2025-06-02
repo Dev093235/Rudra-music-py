@@ -7,23 +7,24 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🎵 Rudra Music API with YouTube Cookies is running!"
+    return "🎵 Rudra Music API with Cookies is running!"
 
 @app.route('/audio')
 def get_audio():
     query = request.args.get('q')
     if not query:
-        return jsonify({"error": "Missing search query parameter `q`"}), 400
+        return jsonify({"error": "Missing search query `q`"}), 400
 
     filename = f"{uuid.uuid4().hex}.mp3"
     filepath = os.path.join("/tmp", filename)
 
     ydl_opts = {
         'format': 'bestaudio/best',
-        'noplaylist': True,
-        'quiet': True,
-        'cookiefile': 'cookies.txt',  # ✅ Make sure this file exists in root
         'outtmpl': filepath,
+        'noplaylist': True,
+        'cookiefile': 'cookies.txt',
+        'quiet': False,           # Enable logging
+        'verbose': True,          # Enable verbose logs
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -33,20 +34,24 @@ def get_audio():
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch1:{query}", download=True)
+            info = ydl.extract_info(f"ytsearch:{query}", download=True)
             if 'entries' in info:
-                info = info['entries'][0]  # First result
+                info = info['entries'][0]
+            elif not info:
+                return jsonify({"error": "No video found"}), 404
+    except yt_dlp.utils.DownloadError as e:
+        return jsonify({"error": "DownloadError", "detail": str(e)}), 500
     except Exception as e:
-        return jsonify({"error": "Download failed", "detail": str(e)}), 500
+        return jsonify({"error": "Unhandled exception", "detail": str(e)}), 500
 
     if not os.path.exists(filepath):
-        return jsonify({"error": "Audio file not created"}), 500
+        return jsonify({"error": "Audio file not created - possible ffmpeg or permission issue"}), 500
 
     return send_file(
         filepath,
         mimetype="audio/mpeg",
         as_attachment=True,
-        download_name=f"{info.get('title', query)}.mp3"
+        download_name=f"{query.replace(' ', '_')}.mp3"
     )
 
 if __name__ == '__main__':
