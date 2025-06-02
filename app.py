@@ -2,6 +2,7 @@ from flask import Flask, request, send_file, jsonify
 import yt_dlp
 import os
 import uuid
+import traceback
 
 app = Flask(__name__)
 
@@ -23,8 +24,8 @@ def get_audio():
         'outtmpl': filepath,
         'noplaylist': True,
         'cookiefile': 'cookies.txt',
-        'quiet': False,           # Enable logging
-        'verbose': True,          # Enable verbose logs
+        'quiet': False,
+        'verbose': True,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -39,20 +40,30 @@ def get_audio():
                 info = info['entries'][0]
             elif not info:
                 return jsonify({"error": "No video found"}), 404
-    except yt_dlp.utils.DownloadError as e:
-        return jsonify({"error": "DownloadError", "detail": str(e)}), 500
+
+        # Check if file is created
+        if not os.path.exists(filepath):
+            return jsonify({"error": "Audio file not created - possible ffmpeg or permission issue"}), 500
+
+        return send_file(
+            filepath,
+            mimetype="audio/mpeg",
+            as_attachment=True,
+            download_name=f"{query.replace(' ', '_')}.mp3"
+        )
+
     except Exception as e:
-        return jsonify({"error": "Unhandled exception", "detail": str(e)}), 500
+        # Get full traceback string
+        tb_str = traceback.format_exc()
+        print(f"ERROR: {tb_str}")  # Ye Render logs me dikhega
 
-    if not os.path.exists(filepath):
-        return jsonify({"error": "Audio file not created - possible ffmpeg or permission issue"}), 500
-
-    return send_file(
-        filepath,
-        mimetype="audio/mpeg",
-        as_attachment=True,
-        download_name=f"{query.replace(' ', '_')}.mp3"
-    )
+        # Detailed error response
+        return jsonify({
+            "error": "Exception occurred",
+            "type": str(type(e)),
+            "message": str(e),
+            "traceback": tb_str
+        }), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000, debug=True)
