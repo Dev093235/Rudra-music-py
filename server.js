@@ -16,7 +16,7 @@ app.get('/song', async (req, res) => {
     if (!song) return res.status(404).json({ error: 'No song found' });
 
     const songId = song.id;
-    const details = await axios.get(`https://saavn.dev/api/songs/${songId}`);
+    const details = await axios.get(`https://youtube.dev/api/songs/${songId}`);
     const mp3Url = details.data.data[0].downloadUrl.find(x => x.quality === '320kbps').link;
     res.redirect(mp3Url);
   } catch (err) {
