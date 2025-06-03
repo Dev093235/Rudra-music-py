@@ -1,31 +1,43 @@
-const express = require('express');
-const axios = require('axios');
-const app = express();
-const PORT = process.env.PORT || 10000;
+const express = require("express");
+const ytdl = require("ytdl-core");
+const cors = require("cors");
 
-app.get('/', (req, res) => {
-  res.send('🎵 Rudra MP3 API is Live! Use /song?q=your+song+name');
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+
+app.get("/", (req, res) => {
+  res.send("✅ YouTube Downloader API by Rudra is running.");
 });
 
-app.get('/song', async (req, res) => {
-  const query = req.query.q;
-  if (!query) return res.status(400).json({ error: 'Missing ?q=song name' });
+app.get("/download", async (req, res) => {
+  const videoUrl = req.query.url;
+  const type = req.query.type || "audio";
+
+  if (!videoUrl || !ytdl.validateURL(videoUrl)) {
+    return res.status(400).json({ error: "Invalid YouTube URL." });
+  }
 
   try {
-    const search = await axios.get(`https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}`);
-    const song = search.data.data.results[0];
-    if (!song) return res.status(404).json({ error: 'No song found' });
+    const info = await ytdl.getInfo(videoUrl);
+    const title = info.videoDetails.title.replace(/[^a-zA-Z0-9]/g, "_");
 
-    const songId = song.id;
-    const songDetails = await axios.get(`https://saavn.dev/api/songs/${songId}`);
-    const mp3Url = songDetails.data.data[0].downloadUrl.find(x => x.quality === '320kbps').link;
+    res.header(
+      "Content-Disposition",
+      `attachment; filename="${title}.${type === "video" ? "mp4" : "mp3"}"`
+    );
 
-    res.redirect(mp3Url); // Direct play/download
+    if (type === "video") {
+      ytdl(videoUrl, { quality: "highestvideo" }).pipe(res);
+    } else {
+      ytdl(videoUrl, { filter: "audioonly", quality: "highestaudio" }).pipe(res);
+    }
   } catch (err) {
-    res.status(500).json({ error: 'Something went wrong', detail: err.message });
+    res.status(500).json({ error: "Download failed." });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🎧 Server running on port ${PORT}`);
+  console.log(`🚀 Server is running on port ${PORT}`);
 });
